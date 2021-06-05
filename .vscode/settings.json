@@ -7,13 +7,13 @@
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
 
+  // 絶対Pathでのインポート
+  "javascript.preferences.importModuleSpecifier": "non-relative",
+
   // スニペットを候補の上部に表示する
   "editor.snippetSuggestions": "top",
   // プレフィックスが一致する場合はスニペットを挿入する
   "editor.tabCompletion": "on",
-
-  // 絶対Pathでのインポート
-  "javascript.preferences.importModuleSpecifier": "non-relative",
 
   // tailwindCSSのサジェスション表示
   "editor.quickSuggestions": {
