@@ -3,9 +3,12 @@ import styles from "src/styles/Home.module.css";
 import { Footer } from "src/components/Footer";
 import { Header } from "src/components/Header";
 import { Main } from "src/components/Main";
+<<<<<<< HEAD
 import { useBgLightBlue } from "src/hooks/useBgLightBlue";
 import { useCounter } from "src/hooks/useCounter";
 import { useInputArray } from "src/hooks/useInputArray";
+=======
+>>>>>>> 218e565fb6f00c092c6adfb0d5b0b96c2ec2e261
 
 export default function Home() {
   const { count, isShow, handleClick, handleDisplay } = useCounter();
