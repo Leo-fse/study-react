@@ -26,7 +26,7 @@ const ITEMS = [
       "Instantly deploy your Next.js site to a public URL with Vercel.",
   },
 ];
-export function Main(props) {
+export const Main = (props) => {
   const [items, setItems] = useState(ITEMS);
   const handleReduce = useCallback(() => {
     setItems((prevItems) => {
@@ -41,4 +41,4 @@ export function Main(props) {
       <Links items={items} />
     </main>
   );
-}
+};
