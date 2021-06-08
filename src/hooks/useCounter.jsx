@@ -16,7 +16,7 @@ export const useCounter = () => {
 
   const handleDisplay = useCallback(() => {
     setIsShow((prevIsShow) => !prevIsShow);
-  });
+  }, []);
 
   return { count, doubleCount, isShow, handleClick, handleDisplay };
 };
