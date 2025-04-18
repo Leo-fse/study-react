@@ -3,6 +3,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 import re
+from itertools import groupby
 
 # === 設定 ===
 input_path = r"C:\path\to\your\file.xlsx"
@@ -114,9 +115,6 @@ chart_info_list.sort(key=lambda c: (c["top"], c["left"]))
 
 # === 出力 ===
 
-current_index = None
-start_row = 2
-
 for display_index, info in enumerate(chart_info_list, start=1):
     chart = info["chart"]
     top_left_cell = info["top_left_cell"]
@@ -134,7 +132,6 @@ for display_index, info in enumerate(chart_info_list, start=1):
         x_headers = get_headers(x_sheet, x_col)
         y_headers = get_headers(y_sheet, y_col)
 
-        # 1行出力
         row = [
             display_index, name,
             x_sheet or "", x_col or "", *x_headers,
@@ -143,27 +140,25 @@ for display_index, info in enumerate(chart_info_list, start=1):
         ]
         output_ws.append(row)
 
-# === チャートインデックスごとの罫線 ===
+# === チャートインデックスごとの罫線装飾（ブロック単位） ===
 row_count = output_ws.max_row
 chart_index_col = 1
+index_rows = [(row, output_ws.cell(row=row, column=chart_index_col).value)
+              for row in range(2, row_count + 1)]
 
-index_ranges = {}
-for row in range(2, row_count + 1):
-    index = output_ws.cell(row=row, column=chart_index_col).value
-    if index not in index_ranges:
-        index_ranges[index] = []
-    index_ranges[index].append(row)
-
-for rows in index_ranges.values():
-    for row in rows:
+for _, group in groupby(index_rows, key=lambda x: x[1]):
+    group_rows = [r for r, _ in group]
+    if not group_rows:
+        continue
+    for row in group_rows:
         for col in range(1, len(headers) + 1):
             output_ws.cell(row=row, column=col).border = thin_border
 
 # === 列幅自動調整 ===
 for col_cells in output_ws.columns:
-    length = max(len(str(cell.value)) if cell.value else 0 for cell in col_cells)
+    max_length = max(len(str(cell.value)) if cell.value else 0 for cell in col_cells)
     col_letter = get_column_letter(col_cells[0].column)
-    output_ws.column_dimensions[col_letter].width = length + 2
+    output_ws.column_dimensions[col_letter].width = max_length + 2
 
 # === 保存と終了 ===
 output_wb.save(output_path)
