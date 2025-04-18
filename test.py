@@ -3,7 +3,6 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 import re
-from itertools import groupby
 
 # === 設定 ===
 input_path = r"C:\path\to\your\file.xlsx"
@@ -38,7 +37,7 @@ thin_border = Border(
     top=Side(style="thin"), bottom=Side(style="thin")
 )
 
-# ヘッダーに装飾適用
+# ヘッダー装飾
 for col in range(1, len(headers) + 1):
     cell = output_ws.cell(row=1, column=col)
     cell.fill = header_fill
@@ -115,6 +114,9 @@ chart_info_list.sort(key=lambda c: (c["top"], c["left"]))
 
 # === 出力 ===
 
+index_ranges = {}  # チャートインデックス → [開始行, 終了行]
+current_row = 2  # データ書き込み開始行
+
 for display_index, info in enumerate(chart_info_list, start=1):
     chart = info["chart"]
     top_left_cell = info["top_left_cell"]
@@ -140,17 +142,17 @@ for display_index, info in enumerate(chart_info_list, start=1):
         ]
         output_ws.append(row)
 
-# === チャートインデックスごとの罫線装飾（ブロック単位） ===
-row_count = output_ws.max_row
-chart_index_col = 1
-index_rows = [(row, output_ws.cell(row=row, column=chart_index_col).value)
-              for row in range(2, row_count + 1)]
+        # 行範囲記録
+        if display_index not in index_ranges:
+            index_ranges[display_index] = [current_row, current_row]
+        else:
+            index_ranges[display_index][1] = current_row
 
-for _, group in groupby(index_rows, key=lambda x: x[1]):
-    group_rows = [r for r, _ in group]
-    if not group_rows:
-        continue
-    for row in group_rows:
+        current_row += 1
+
+# === チャートインデックスごとにブロック罫線適用 ===
+for start_row, end_row in index_ranges.values():
+    for row in range(start_row, end_row + 1):
         for col in range(1, len(headers) + 1):
             output_ws.cell(row=row, column=col).border = thin_border
 
