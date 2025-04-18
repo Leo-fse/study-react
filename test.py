@@ -14,7 +14,7 @@ wb = excel.Workbooks.Open(input_path)
 output_wb = Workbook()
 output_ws = output_wb.active
 output_ws.title = "SeriesList"
-output_ws.append(["Chart Index", "Series Name", "Formula"])
+output_ws.append(["Chart Index", "Series Name", "XValues", "YValues", "Formula"])
 
 try:
     sheet = wb.Sheets(target_sheet_name)
@@ -23,10 +23,22 @@ try:
     for i in range(1, chart_objects.Count + 1):
         chart = chart_objects.Item(i).Chart
         for s in chart.SeriesCollection():
-            name = f"{s.Name}"         # 安定して文字列化
-            formula = f"{s.Formula}"   # ← ここが重要
-            print(f"[DEBUG] Formula: {formula}")  # コンソール確認
-            output_ws.append([i, name, formula])
+            name = f"{s.Name}"
+            formula = f"{s.Formula}".replace("=", "")  # 数式扱い防止
+
+            # XValues・YValues は範囲参照 or 実データ
+            try:
+                xvalues = f"{s.XValues}"
+            except Exception:
+                xvalues = "N/A"
+
+            try:
+                yvalues = f"{s.Values}"
+            except Exception:
+                yvalues = "N/A"
+
+            print(f"[DEBUG] name={name}, x={xvalues}, y={yvalues}")
+            output_ws.append([i, name, xvalues, yvalues, formula])
 
     output_wb.save(output_path)
     print(f"✅ 出力完了: {output_path}")
