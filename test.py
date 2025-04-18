@@ -1,10 +1,12 @@
 import win32com.client
 from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
 import re
 
 # === 設定 ===
 input_path = r"C:\path\to\your\file.xlsx"
-output_path = r"C:\path\to\chart_headers.xlsx"
+output_path = r"C:\path\to\chart_headers_decorated.xlsx"
 target_sheet_name = "グラフシート"
 
 # === Excel起動 ===
@@ -17,12 +19,29 @@ ws_dict = {ws.Name: ws for ws in wb.Sheets}
 output_wb = Workbook()
 output_ws = output_wb.active
 output_ws.title = "HeaderInfo"
-output_ws.append([
+
+# ヘッダー定義
+headers = [
     "Chart Index (見た目順)", "Series Name",
     "X Sheet", "X Column", "X Header1", "X Header2", "X Header3",
     "Y Sheet", "Y Column", "Y Header1", "Y Header2", "Y Header3",
-    "X Axis Label", "Y Axis Label"
-])
+    "X Axis Label", "Y Axis Label", "TopLeft Cell"
+]
+output_ws.append(headers)
+
+# === 装飾定義 ===
+header_fill = PatternFill(start_color="B0C4DE", end_color="B0C4DE", fill_type="solid")
+header_font = Font(bold=True)
+thin_border = Border(
+    left=Side(style="thin"), right=Side(style="thin"),
+    top=Side(style="thin"), bottom=Side(style="thin")
+)
+
+# ヘッダーに装飾適用
+for col in range(1, len(headers) + 1):
+    cell = output_ws.cell(row=1, column=col)
+    cell.fill = header_fill
+    cell.font = header_font
 
 # === ヘルパー関数 ===
 
@@ -67,57 +86,87 @@ def get_axis_title(chart, axis_type):
         pass
     return ""
 
-# === メイン処理 ===
+# === グラフ情報収集とソート ===
 
-try:
-    sheet = wb.Sheets(target_sheet_name)
-    chart_objects = sheet.ChartObjects()
+sheet = wb.Sheets(target_sheet_name)
+chart_objects = sheet.ChartObjects()
 
-    # グラフと位置情報を取得（COMオブジェクト除外で比較）
-    chart_info_list = []
-    for i in range(1, chart_objects.Count + 1):
-        chart_obj = chart_objects.Item(i)
-        chart = chart_obj.Chart
-        chart_info_list.append({
-            "top": chart_obj.Top,
-            "left": chart_obj.Left,
-            "chart_obj": chart_obj,
-            "chart": chart
-        })
+# グラフ情報を取得
+chart_info_list = []
+for i in range(1, chart_objects.Count + 1):
+    chart_obj = chart_objects.Item(i)
+    chart = chart_obj.Chart
+    top = chart_obj.Top
+    left = chart_obj.Left
+    try:
+        top_left_cell = chart_obj.TopLeftCell.Address.replace("$", "")
+    except:
+        top_left_cell = ""
+    chart_info_list.append({
+        "top": top,
+        "left": left,
+        "chart": chart,
+        "top_left_cell": top_left_cell
+    })
 
-    # 見た目順にソート（左上 → 右下）
-    chart_info_list.sort(key=lambda c: (c["top"], c["left"]))
+# 見た目順にソート（左上→右下）
+chart_info_list.sort(key=lambda c: (c["top"], c["left"]))
 
-    # 出力処理（並び順どおり）
-    for display_index, info in enumerate(chart_info_list, start=1):
-        chart = info["chart"]
-        x_axis_label = get_axis_title(chart, 1)  # xlCategory
-        y_axis_label = get_axis_title(chart, 2)  # xlValue
+# === 出力 ===
 
-        for s in chart.SeriesCollection():
-            name = str(s.Name)
-            formula = str(s.Formula)
-            x_range, y_range = parse_formula(formula)
+current_index = None
+start_row = 2
 
-            x_sheet, x_col = parse_range_for_header(x_range)
-            y_sheet, y_col = parse_range_for_header(y_range)
+for display_index, info in enumerate(chart_info_list, start=1):
+    chart = info["chart"]
+    top_left_cell = info["top_left_cell"]
+    x_axis_label = get_axis_title(chart, 1)
+    y_axis_label = get_axis_title(chart, 2)
 
-            x_headers = get_headers(x_sheet, x_col)
-            y_headers = get_headers(y_sheet, y_col)
+    for s in chart.SeriesCollection():
+        name = str(s.Name)
+        formula = str(s.Formula)
+        x_range, y_range = parse_formula(formula)
 
-            output_ws.append([
-                display_index, name,
-                x_sheet or "", x_col or "", *x_headers,
-                y_sheet or "", y_col or "", *y_headers,
-                x_axis_label, y_axis_label
-            ])
+        x_sheet, x_col = parse_range_for_header(x_range)
+        y_sheet, y_col = parse_range_for_header(y_range)
 
-    output_wb.save(output_path)
-    print(f"✅ 出力完了（軸ラベル含む）: {output_path}")
+        x_headers = get_headers(x_sheet, x_col)
+        y_headers = get_headers(y_sheet, y_col)
 
-except Exception as e:
-    print(f"❌ エラー: {e}")
+        # 1行出力
+        row = [
+            display_index, name,
+            x_sheet or "", x_col or "", *x_headers,
+            y_sheet or "", y_col or "", *y_headers,
+            x_axis_label, y_axis_label, top_left_cell
+        ]
+        output_ws.append(row)
 
-finally:
-    wb.Close(False)
-    excel.Quit()
+# === チャートインデックスごとの罫線 ===
+row_count = output_ws.max_row
+chart_index_col = 1
+
+index_ranges = {}
+for row in range(2, row_count + 1):
+    index = output_ws.cell(row=row, column=chart_index_col).value
+    if index not in index_ranges:
+        index_ranges[index] = []
+    index_ranges[index].append(row)
+
+for rows in index_ranges.values():
+    for row in rows:
+        for col in range(1, len(headers) + 1):
+            output_ws.cell(row=row, column=col).border = thin_border
+
+# === 列幅自動調整 ===
+for col_cells in output_ws.columns:
+    length = max(len(str(cell.value)) if cell.value else 0 for cell in col_cells)
+    col_letter = get_column_letter(col_cells[0].column)
+    output_ws.column_dimensions[col_letter].width = length + 2
+
+# === 保存と終了 ===
+output_wb.save(output_path)
+wb.Close(False)
+excel.Quit()
+print(f"✅ 完了: {output_path}")
