@@ -3,24 +3,22 @@ from openpyxl import Workbook
 import re
 
 # === 設定 ===
-input_path = r"C:\path\to\your\file.xlsx"          # Excel元ファイル
-output_path = r"C:\path\to\chart_headers.xlsx"     # 出力ファイル
-target_sheet_name = "グラフシート"                   # グラフがあるシート名
+input_path = r"C:\path\to\your\file.xlsx"
+output_path = r"C:\path\to\chart_headers.xlsx"
+target_sheet_name = "グラフシート"
 
 # === Excel起動 ===
 excel = win32com.client.Dispatch("Excel.Application")
 excel.Visible = False
 wb = excel.Workbooks.Open(input_path)
-
-# シート辞書を用意
 ws_dict = {ws.Name: ws for ws in wb.Sheets}
 
-# === 出力用ブック作成 ===
+# === 出力用ブック ===
 output_wb = Workbook()
 output_ws = output_wb.active
 output_ws.title = "HeaderInfo"
 output_ws.append([
-    "Chart Index", "Series Name",
+    "Chart Index (見た目順)", "Series Name",
     "X Sheet", "X Column", "X Header1", "X Header2", "X Header3",
     "Y Sheet", "Y Column", "Y Header1", "Y Header2", "Y Header3"
 ])
@@ -28,23 +26,16 @@ output_ws.append([
 # === ヘルパー関数 ===
 
 def parse_formula(formula):
-    """
-    =SERIES("名前", 'シート'!$E$4:$E$404, 'シート'!$F$4:$F$404, 1)
-    → x_range, y_range を抽出
-    """
     try:
         inner = formula.strip()[len("=SERIES("):-1]
         parts = [p.strip() for p in inner.split(",")]
         if len(parts) >= 3:
-            return parts[1], parts[2]  # x_range, y_range
+            return parts[1], parts[2]
     except:
         pass
     return None, None
 
 def parse_range_for_header(range_str):
-    """
-    'シート'!$E$4:$E$404 → (シート名, 列)
-    """
     if not range_str:
         return None, None
     match = re.match(
@@ -61,18 +52,31 @@ def get_headers(sheet_name, col_letter):
     if not sheet_name or not col_letter:
         return ["", "", ""]
     try:
-        ws = ws_dict.get(sheet_name)
+        ws = ws_dict[sheet_name]
         return [ws.Range(f"{col_letter}{r}").Value for r in range(1, 4)]
     except:
         return ["", "", ""]
 
 # === メイン処理 ===
+
 try:
     sheet = wb.Sheets(target_sheet_name)
     chart_objects = sheet.ChartObjects()
 
+    # グラフと位置情報をまとめて取得
+    chart_info_list = []
     for i in range(1, chart_objects.Count + 1):
-        chart = chart_objects.Item(i).Chart
+        chart_obj = chart_objects.Item(i)
+        chart = chart_obj.Chart
+        top = chart_obj.Top
+        left = chart_obj.Left
+        chart_info_list.append((top, left, chart_obj, chart))
+
+    # 見た目順（上→下、左→右）にソート
+    chart_info_list.sort()
+
+    # 見た目順で出力
+    for display_index, (top, left, chart_obj, chart) in enumerate(chart_info_list, start=1):
         for s in chart.SeriesCollection():
             name = str(s.Name)
             formula = str(s.Formula)
@@ -85,13 +89,13 @@ try:
             y_headers = get_headers(y_sheet, y_col)
 
             output_ws.append([
-                i, name,
+                display_index, name,
                 x_sheet or "", x_col or "", *x_headers,
                 y_sheet or "", y_col or "", *y_headers
             ])
 
     output_wb.save(output_path)
-    print(f"✅ 出力完了: {output_path}")
+    print(f"✅ 出力完了（見た目順）: {output_path}")
 
 except Exception as e:
     print(f"❌ エラー: {e}")
