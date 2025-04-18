@@ -20,7 +20,6 @@ output_wb = Workbook()
 output_ws = output_wb.active
 output_ws.title = "HeaderInfo"
 
-# ヘッダー定義
 headers = [
     "Chart Index (見た目順)", "Series Name",
     "X Sheet", "X Column", "X Header1", "X Header2", "X Header3",
@@ -29,19 +28,17 @@ headers = [
 ]
 output_ws.append(headers)
 
-# === 装飾定義 ===
+# === スタイル定義 ===
 header_fill = PatternFill(start_color="B0C4DE", end_color="B0C4DE", fill_type="solid")
 header_font = Font(bold=True)
-thin_border = Border(
-    left=Side(style="thin"), right=Side(style="thin"),
-    top=Side(style="thin"), bottom=Side(style="thin")
-)
 
-# ヘッダー装飾
 for col in range(1, len(headers) + 1):
     cell = output_ws.cell(row=1, column=col)
     cell.fill = header_fill
     cell.font = header_font
+
+thin = Side(style="thin")
+thick = Side(style="thick")
 
 # === ヘルパー関数 ===
 
@@ -86,12 +83,11 @@ def get_axis_title(chart, axis_type):
         pass
     return ""
 
-# === グラフ情報収集とソート ===
+# === グラフ情報取得とソート ===
 
 sheet = wb.Sheets(target_sheet_name)
 chart_objects = sheet.ChartObjects()
 
-# グラフ情報を取得
 chart_info_list = []
 for i in range(1, chart_objects.Count + 1):
     chart_obj = chart_objects.Item(i)
@@ -109,13 +105,12 @@ for i in range(1, chart_objects.Count + 1):
         "top_left_cell": top_left_cell
     })
 
-# 見た目順にソート（左上→右下）
 chart_info_list.sort(key=lambda c: (c["top"], c["left"]))
 
-# === 出力 ===
+# === 出力と罫線範囲記録 ===
 
-index_ranges = {}  # チャートインデックス → [開始行, 終了行]
-current_row = 2  # データ書き込み開始行
+index_ranges = {}
+current_row = 2
 
 for display_index, info in enumerate(chart_info_list, start=1):
     chart = info["chart"]
@@ -142,7 +137,6 @@ for display_index, info in enumerate(chart_info_list, start=1):
         ]
         output_ws.append(row)
 
-        # 行範囲記録
         if display_index not in index_ranges:
             index_ranges[display_index] = [current_row, current_row]
         else:
@@ -150,11 +144,15 @@ for display_index, info in enumerate(chart_info_list, start=1):
 
         current_row += 1
 
-# === チャートインデックスごとにブロック罫線適用 ===
+# === ブロックごとに罫線（上下 = thick, 他 = thin） ===
 for start_row, end_row in index_ranges.values():
     for row in range(start_row, end_row + 1):
         for col in range(1, len(headers) + 1):
-            output_ws.cell(row=row, column=col).border = thin_border
+            top = thick if row == start_row else thin
+            bottom = thick if row == end_row else thin
+            output_ws.cell(row=row, column=col).border = Border(
+                top=top, bottom=bottom, left=thin, right=thin
+            )
 
 # === 列幅自動調整 ===
 for col_cells in output_ws.columns:
