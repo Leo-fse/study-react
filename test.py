@@ -1,0 +1,44 @@
+import win32com.client
+import openpyxl
+from openpyxl import Workbook
+
+# 元のExcelファイルと出力ファイルのパス
+input_path = r"C:\path\to\your\file.xlsx"
+output_path = r"C:\path\to\chart_series_list.xlsx"
+target_sheet_name = "グラフシート"  # 対象シート名
+
+# Excelを起動
+excel = win32com.client.Dispatch("Excel.Application")
+excel.Visible = False
+
+# ワークブックを開く
+wb = excel.Workbooks.Open(input_path)
+
+# 新しいExcelファイル（出力用）を作成
+output_wb = Workbook()
+output_ws = output_wb.active
+output_ws.title = "SeriesList"
+output_ws.append(["Chart Index", "Series Name", "Formula"])  # ヘッダー
+
+try:
+    sheet = wb.Sheets(target_sheet_name)
+    chart_objects = sheet.ChartObjects()
+
+    for i in range(1, chart_objects.Count + 1):
+        chart = chart_objects.Item(i).Chart
+        for s in chart.SeriesCollection():
+            output_ws.append([
+                i,
+                s.Name,
+                s.Formula
+            ])
+
+    output_wb.save(output_path)
+    print(f"出力完了: {output_path}")
+
+except Exception as e:
+    print(f"エラー: {e}")
+
+finally:
+    wb.Close(False)
+    excel.Quit()
