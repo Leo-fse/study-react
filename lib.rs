@@ -1,37 +1,36 @@
-use serde::Deserialize;
 use std::process::{Command, Stdio};
 use std::io::Write;
 use tauri::command;
 
-#[derive(Deserialize)]
-struct QueryPayload {
-  db_path: String,
-  query:   String,
-}
-
 #[command]
-async fn query_duckdb(payload: QueryPayload) -> Result<Vec<serde_json::Value>, String> {
-  let mut child = Command::new("python3")
-    .arg("scripts/query_duckdb.py")
-    .stdin(Stdio::piped())
-    .stdout(Stdio::piped())
-    .spawn()
-    .map_err(|e| e.to_string())?;
+fn run_python_duckdb_query(db_path: String, query: String) -> Result<String, String> {
+    let mut child = Command::new("python3")
+        .arg("query_duckdb.py")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to start Python: {}", e))?;
 
-  // stdin に JSON を書き込む
-  {
-    let stdin = child.stdin.as_mut().ok_or("failed to open stdin")?;
-    let input = serde_json::to_vec(&payload).map_err(|e| e.to_string())?;
-    stdin.write_all(&input).map_err(|e| e.to_string())?;
-  }
+    let input = serde_json::json!({
+        "db_path": db_path,
+        "query": query
+    });
 
-  let output = child.wait_with_output().map_err(|e| e.to_string())?;
-  if !output.status.success() {
-    return Err(format!("python error: {:?}", output));
-  }
+    if let Some(stdin) = child.stdin.as_mut() {
+        stdin
+            .write_all(input.to_string().as_bytes())
+            .map_err(|e| format!("Failed to write to stdin: {}", e))?;
+    } else {
+        return Err("Could not open stdin".to_string());
+    }
 
-  // Vec<Value> に直接パース
-  let rows = serde_json::from_slice(&output.stdout)
-    .map_err(|e| format!("invalid json: {}", e))?;
-  Ok(rows)
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("Failed to read output: {}", e))?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).to_string())
+    }
 }
